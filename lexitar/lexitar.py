@@ -23,48 +23,7 @@ def main():
 
     args = parser.parse_args()
 
-
-def encode_header(nsym):
-    header = b''
-    nsym = nsym.to_bytes(8, byteorder='big')
-    magic = b'lexitar '
-    sv = stream_version.to_bytes(2, byteorder='big')
-    reserved = bytes(14)
-    header = nsym + magic + sv + reserved
-
-    assert(len(header) == 32)
-
-    rs = reedsolo.RSCodec(len(header))
-    header = rs.encode(header)
-    return header
-
-def decode_header(header):
-    """decode_hader
-
-    Extract nsym from header and return.
-
-    :param header:
-    """
-
-    header = bytes(header)
-    assert len(header) == 64
-
-    rs = reedsolo.RSCodec(int(len(header) / 2))
-
-    header = rs.decode(header)
-    assert len(header) == 32
-
-    nsym     = header[0:8]
-    magic    = header[8:16]
-    sv       = header[16:18]
-    reserved = header[18:32]
-
-    assert(magic == b'lexitar ')
-    assert(sv == stream_version.to_bytes(2, byteorder='big'))
-    return int.from_bytes(nsym, byteorder="big")
-
-
-def pack_stream(data, correction_rate):
+def pack_stream(data, nsym):
     """pack_stream
 
     Pack the specified data into the Lexitar stream format and return it.
@@ -73,37 +32,20 @@ def pack_stream(data, correction_rate):
     calculated, finally it is padded with null bytes until the packed stream
     length is a multiple of chunksize / 8 bytes.
 
-    The header is 64 bytes long and has this format:
-
-    * bytes 0-7 specifies the nsym for the RS encoding
-    * bytes 8-15 contains the magic string 'lexitar '
-    * bytes 16-17 contain the stream version
-    * bytes 18-31 are reserved for future use
-    * bytes 31-63 are the correction symbols for the first 32 bytes, using
-      reed solomon coding with nsym=32
-
-    The header is prepended to the front of the data, and appended to the end.
-
     The result is returned.
 
     :param data:
     """
 
     data = bytes(data)
-    data = bz2.compress(data)
-
-
-    nsym = int(len(data) * correction_rate) + 1
-
-    header = encode_header(nsym)
+    #  data = bz2.compress(data)
 
     rs = reedsolo.RSCodec(nsym)
-    #  data = rs.encode(data)
+    data = rs.encode(data)
 
     while len(data) % int(chunksize / 8) != 0:
         data += bytes([0])
 
-    data = header + data + header
     return data
 
 def unpack_stream(data):
@@ -114,33 +56,9 @@ def unpack_stream(data):
     :param data:
     """
 
-    header_1 = data[0:64]
-    header_2 = data[-64:]
-
-    nsym = None
-    try:
-        nsym = decode_header(header_1)
-    except Exception as e:
-        sys.stderr.write("WARNING: encountered exception while decoding" +
-                         " header: '{}', attempting to".format(e) +
-                         " decode backup header...\n")
-        try:
-            nsym = decode_header(header_2)
-        except Exception as e:
-            sys.stderr.write("FATAL: encountered exception while " +
-                             "decoding backup header: '{}'".format(e) +
-                             ". Both headers are corrupt!\n")
-            sys.stderr.write("DEBUG: header_1: '{}'\n".format(header_1))
-            sys.stderr.write("DEBUG: header_2: '{}'\n".format(header_2))
-            raise ValueError("Corrupted header")
-
-    assert(nsym is not None)
-
-    rs = reedsolo.RSCodec(1)
-
-    data = data[64:-64]
-    #  data = rs.decode(data)
-    data = bz2.decompress(data)
+    rs = reedsolo.RSCodec()
+    data = rs.decode(data)
+    #  data = bz2.decompress(data)
 
     return data
 
@@ -166,7 +84,7 @@ def encode_translate(data):
 
     return encoded
 
-def encode(data, linelength=72, correction_rate = 0.1):
+def encode(data, linelength=72, nsym = 20):
     """encode
 
     Encode the specified data, and return it as a string. it is automatically
@@ -175,7 +93,7 @@ def encode(data, linelength=72, correction_rate = 0.1):
     :param data: The data to encode, must be cast-able to bytes()
     :param linelength: Desired line length for return
     """
-    data = pack_stream(data, correction_rate)
+    data = pack_stream(data, nsym)
     encoded = '\n'.join(textwrap.wrap(encode_translate(data), linelength))
     return encoded
 

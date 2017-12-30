@@ -407,35 +407,25 @@ elementum ligula eu arcu mattis venenatis. Sed tempor est et placerat feugiat.
 Etiam et mauris vel est luctus rhoncus id vel elit. Aliquam eleifend lobortis
 scelerisque. Nunc id gravida ante, ut vulputate odio. Nunc tincidunt euismod
 elit, in eleifend justo cursus ac. Morbi tempor leo libero, ultrices consequat
-nisl auctor non. Quisque non aliquam lectus. Vivamus ac erat nulla. 
+nisl auctor non. Quisque non aliquam lectus. Vivamus ac erat nulla.
 
 """
-
-class test_header(unittest.TestCase):
-    def test_0(this):
-        this.assertEqual(lexitar.decode_header(lexitar.encode_header(0)), 0)
-
-    def test_12345(this):
-        this.assertEqual(lexitar.decode_header(lexitar.encode_header(12345)), 12345)
-
-    def test_5678(this):
-        this.assertEqual(lexitar.decode_header(lexitar.encode_header(5678)), 5678)
 
 class test_stream(unittest.TestCase):
 
     def test_small(this):
         data = b'small'
-        packed = lexitar.pack_stream(data, 1)
+        packed = lexitar.pack_stream(data, 10)
         this.assertEqual(data, lexitar.unpack_stream(packed))
 
     def test_medium(this):
         data = b'This is a medium sized chunk of example data for testing lexitar'
-        packed = lexitar.pack_stream(data, 1)
+        packed = lexitar.pack_stream(data, 10)
         this.assertEqual(data, lexitar.unpack_stream(packed))
 
     def test_big(this):
         data = ipsum.encode('ascii')
-        packed = lexitar.pack_stream(data, 1)
+        packed = lexitar.pack_stream(data, 10)
         this.assertEqual(data, lexitar.unpack_stream(packed))
 
 
@@ -451,13 +441,15 @@ class test_encode_decode(unittest.TestCase):
         encoded = lexitar.encode(data)
         this.assertEqual(data, lexitar.decode(encoded))
 
-    def test_ecc(this):
-        ecc_rate = 0.1
+    def test_big(this):
         data = ipsum.encode('ascii')
-        encoded = lexitar.encode(data, 72, ecc_rate).split()
-        #  print(encoded)
-        #  errors = int(ecc_rate * len(data) * 0.2 - 2)
-        errors = 0
+        encoded = lexitar.encode(data)
+        this.assertEqual(data, lexitar.decode(encoded))
+
+    def test_ecc(this):
+        data = ipsum.encode('ascii')
+        encoded = lexitar.encode(data, 72, 20).split()
+        errors = 0 # number of errors to introduce
         for i in range(errors):
             encoded[(65 + i) % len(encoded)] = "test_error"
         encoded = ' '.join(encoded)
