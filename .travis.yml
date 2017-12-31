@@ -5,6 +5,7 @@ python:
 os: linux
 install:
 - pip install pycodestyle setuptools reedsolo
+- pip3 install reedsolo
 script:
 - "python3 lexitar/test_lexitar.py"
 notifications:
