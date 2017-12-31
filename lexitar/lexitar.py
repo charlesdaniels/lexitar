@@ -23,6 +23,61 @@ def main():
 
     args = parser.parse_args()
 
+def encode_header(length):
+    """encode_header
+
+    The header has the following format:
+
+    byte 0-3 : magic string 'lxt'
+    byte 4   : stream version
+    byte 5-7 : message length in bytes, not including padding
+
+    :param length:
+    """
+
+    length = int(length)
+    header = b''
+    magic = b'lxt'
+    sv = stream_version.to_bytes(1, byteorder='big')
+    length = length.to_bytes(4, byteorder="big")
+    header = magic + sv + length
+
+    assert(len(header) == 8)
+
+    rs = reedsolo.RSCodec(len(header))
+    header = rs.encode(header)
+    return header
+
+def decode_header(header):
+    """decode_hader
+
+    Extract length from header and return.
+
+    :param header:
+    """
+
+    header = bytes(header)
+    assert len(header) == 16
+
+    rs = reedsolo.RSCodec(int(len(header) / 2))
+
+    header = rs.decode(header)
+    assert len(header) == 8
+
+    magic  = (header[0:3])
+    sv     = (header[3])
+    length = (header[4:8])
+
+    if magic != b'lxt':
+        raise ValueError("Magic was '{}', expected '{}'"
+                         .format(magic, b'lxtr'))
+
+    if sv != stream_version:
+        raise ValueError("Don't know how to decode stream version '{}'"
+                         .format(sv))
+
+    return int.from_bytes(length, byteorder="big")
+
 def pack_stream(data, nsym):
     """pack_stream
 
@@ -31,6 +86,8 @@ def pack_stream(data, nsym):
     The data is bz2 encoded, then the reed-solomon encoding for it is
     calculated, finally it is padded with null bytes until the packed stream
     length is a multiple of chunksize / 8 bytes.
+
+    The header is appended and prepended to the data.
 
     The result is returned.
 
@@ -41,10 +98,12 @@ def pack_stream(data, nsym):
     #  data = bz2.compress(data)
 
     rs = reedsolo.RSCodec(nsym)
+    length = len(data)
     data = rs.encode(data)
-
     while len(data) % int(chunksize / 8) != 0:
-        data += bytes([0])
+        data = data + b'\x00'
+    header = encode_header(length)
+    data = header + data + header
 
     return data
 
@@ -56,9 +115,37 @@ def unpack_stream(data):
     :param data:
     """
 
+    header_1 = data[0:16]
+    header_2 = data[-16:]
+
+    assert(len(header_1) == 16)
+    assert(len(header_2) == 16)
+
+    length = None
+    try:
+        length = decode_header(header_1)
+    except Exception as e:
+        sys.stderr.write("WARNING: encountered exception while decoding" +
+                         " header: '{}', attempting to".format(e) +
+                         " decode backup header...\n")
+        try:
+            length = decode_header(header_2)
+        except Exception as e:
+            sys.stderr.write("FATAL: encountered exception while " +
+                             "decoding backup header: '{}'".format(e) +
+                             ". Both headers are corrupt!\n")
+            sys.stderr.write("DEBUG: header_1: '{}'\n".format(header_1))
+            sys.stderr.write("DEBUG: header_2: '{}'\n".format(header_2))
+            raise ValueError("Corrupted header")
+
+    assert(length is not None)
+
+    data = bytearray(data[16:-16])
     rs = reedsolo.RSCodec()
     data = rs.decode(data)
+    data = data[0:length]
     #  data = bz2.decompress(data)
+    data = bytes(data)
 
     return data
 

@@ -411,6 +411,25 @@ nisl auctor non. Quisque non aliquam lectus. Vivamus ac erat nulla.
 
 """
 
+class test_header(unittest.TestCase):
+    def test_header_0(this):
+        val = 0
+        encoded = lexitar.encode_header(val)
+        decoded = lexitar.decode_header(encoded)
+        this.assertEqual(decoded, val)
+
+    def test_header_1(this):
+        val = 1
+        encoded = lexitar.encode_header(val)
+        decoded = lexitar.decode_header(encoded)
+        this.assertEqual(decoded, val)
+
+    def test_header_123(this):
+        val = 123
+        encoded = lexitar.encode_header(val)
+        decoded = lexitar.decode_header(encoded)
+        this.assertEqual(decoded, val)
+
 class test_stream(unittest.TestCase):
 
     def test_small(this):
@@ -432,6 +451,11 @@ class test_stream(unittest.TestCase):
 class test_translation(unittest.TestCase):
     def test_simple(this):
         data = b'This is a medium sized chunk of example data for testing lexitar'
+        encoded = lexitar.encode_translate(data)
+        this.assertEqual(data, lexitar.decode_translate(encoded))
+
+    def test_big(this):
+        data = ipsum.encode('ascii')
         encoded = lexitar.encode_translate(data)
         this.assertEqual(data, lexitar.decode_translate(encoded))
 
